@@ -6,7 +6,7 @@ class JogoIA extends Component {
         this.state = {
             userChoice: 'Aguardando...',
             computerChoice: '?',
-            result: 'Mostre sua jogada na câmera!',
+            result: 'Aguardando câmera...',
             isPlaying: false,
             isLoading: true,
             cameraError: false,
@@ -16,59 +16,74 @@ class JogoIA extends Component {
     }
 
     async onMount() {
+        // Tenta detectar câmeras sem travar o código se falhar
+        await this.detectCameras();
+    }
+
+    async detectCameras() {
         try {
-            // Pede permissão inicial rápida para o Navegador liberar os nomes corretos (Camo, USB, etc)
-            await navigator.mediaDevices.getUserMedia({ video: true });
-            
-            // Busca todos os dispositivos de mídia logados no PC
-            const allDevices = await navigator.mediaDevices.enumerateDevices();
-            const videoDevices = allDevices.filter(device => device.kind === 'videoinput');
-            
+            // Tenta listar o que o Windows reporta
+            let allDevices = await navigator.mediaDevices.enumerateDevices();
+            let videoDevices = allDevices.filter(device => device.kind === 'videoinput');
+
+            // Se não vier nomes (labels), precisamos pedir permissão primeiro
+            if (videoDevices.length > 0 && !videoDevices[0].label) {
+                try {
+                    // Pede permissão apenas para vídeo
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    // Se deu certo, para o stream temporário para não dar conflito
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    // Lista de novo para pegar os nomes reais (Camo, etc)
+                    allDevices = await navigator.mediaDevices.enumerateDevices();
+                    videoDevices = allDevices.filter(device => device.kind === 'videoinput');
+                } catch (e) {
+                    console.warn("Permissão negada ou erro no prompt inicial:", e);
+                }
+            }
+
             if (videoDevices.length > 0) {
-                // Guarda eles no State
                 this.setState({ 
                     devices: videoDevices,
-                    selectedDeviceId: videoDevices[0].deviceId
+                    selectedDeviceId: videoDevices[0].deviceId,
+                    cameraError: false
                 });
-                
-                // Inicia a Câmera AI passando o ID específico
                 await this.initAI(videoDevices[0].deviceId);
             } else {
-                throw new Error("Nenhuma câmera encontrada no sistema.");
+                // Se chegou aqui, o Camo não está sendo visto pelo Chrome
+                this.setState({ isLoading: false, cameraError: true });
             }
         } catch (error) {
-            console.error("Erro ao verificar câmeras:", error);
+            console.error("Erro na detecção:", error);
             this.setState({ isLoading: false, cameraError: true });
         }
     }
 
-    // Método chamado ao inicializar e também ao trocar de câmera na dropdown
     async initAI(deviceId) {
         this.setState({ isLoading: true, selectedDeviceId: deviceId });
         
         try {
-            // Se já tiver uma webcam rodando antes (troca de id), para o stream anterior e remove o canvas antigo.
             if (this.webcam) {
                 this.webcam.stop();
                 const container = document.getElementById("webcam-container");
-                if (container && container.firstChild) {
-                    container.innerHTML = '';
-                }
+                if (container) container.innerHTML = '';
             }
 
             const URL = "https://teachablemachine.withgoogle.com/models/ib_Kd5aCH/";
-            
-            // Só carrega os Pesos da Inteligência Artificial uma vez
             if (!this.model) {
                 this.model = await tmImage.load(URL + "model.json", URL + "metadata.json");
             }
             
-            // Inicializa a câmera apontando para o Sensor Virtual do Camo
+            // Tenta forçar a resolução padrão para webcams virtuais
             this.webcam = new tmImage.Webcam(300, 300, true);
+            
+            // Adicionando um pequeno delay para o Camo Studio "acordar"
+            await new Promise(r => setTimeout(r, 500));
+            
             await this.webcam.setup({ deviceId: deviceId }); 
             await this.webcam.play();
             
-            this.setState({ isLoading: false });
+            this.setState({ isLoading: false, cameraError: false });
             
             const webcamContainer = document.getElementById("webcam-container");
             if (webcamContainer) {
@@ -77,34 +92,32 @@ class JogoIA extends Component {
             
             this.loop();
         } catch (error) {
-            console.error("Erro no setup da IA:", error);
+            console.error("Erro ao iniciar câmera especifica:", error);
+            // Se falhar, talvez seja permissão ou o Camo ocupado
             this.setState({ isLoading: false, cameraError: true });
         }
     }
 
-    // Chamado pelo <select> do HTML
     mudarCamera(novoDeviceId) {
-        if (novoDeviceId !== this.state.selectedDeviceId) {
-            this.initAI(novoDeviceId);
-        }
+        this.initAI(novoDeviceId);
     }
 
     async loop() {
-        if (!this.webcam) return;
+        if (!this.webcam || this.state.cameraError) return;
         this.webcam.update();
         await this.predict();
         window.requestAnimationFrame(() => this.loop());
     }
 
     async predict() {
-        if (this.state.isLoading) return; // proteção extra
+        if (this.state.isLoading || this.state.isPlaying) return;
         const prediction = await this.model.predict(this.webcam.canvas);
         
         const bestPrediction = prediction.reduce((prev, current) => 
             (prev.probability > current.probability) ? prev : current
         );
 
-        if (bestPrediction.probability > 0.9) {
+        if (bestPrediction.probability > 0.85) {
             const classNome = bestPrediction.className.trim();
             if (classNome.toLowerCase() !== "fundo" && classNome !== "Background") {
                 this.processarJogada(classNome);
@@ -136,7 +149,7 @@ class JogoIA extends Component {
             resultado = "Você Venceu! 🎉";
             statusColor = "vitoria";
         } else {
-            resultado = "Computador Venceu! 😢";
+            resultado = "IA Venceu! 😢";
             statusColor = "derrota";
         }
 
@@ -163,10 +176,17 @@ class JogoIA extends Component {
         if (this.state.cameraError) {
             return `
               <div class="game-container status-derrota">
-                  <h2>Erro na Câmera 📷</h2>
-                  <p style="font-size: 1.2rem; margin-top: 10px; text-align: center;">O navegador bloqueou o acesso à sua webcam ou ela está sendo usada por outro app.</p>
-                  <p style="font-size: 1rem; color: var(--text-muted); text-align: center;">Por favor, libere o acesso no ícone de "Configurações de site" (cadeado) na barra de endereços ali em cima e recarregue a página.</p>
-                  <button onclick="location.reload()" style="padding:12px 24px; font-size:1.2rem; cursor:pointer; margin-top:20px; border-radius:12px; border:none; background:var(--primary); color:white; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);">Tentar Novamente</button>
+                  <h2>Ops! Camo não detectado 📷</h2>
+                  <p style="font-size: 1.1rem; margin-top: 10px; text-align: center;">Não conseguimos encontrar sua câmera. O Camo Studio está aberto e transmitindo?</p>
+                  
+                  <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; margin: 15px 0; font-size: 0.9rem; border: 1px dashed var(--primary);">
+                    <strong>Dicas para resolver:</strong><br>
+                    1. Verifique se o celular está conectado ao Camo no PC.<br>
+                    2. Clique no ícone de "Configurações" (Tune) ao lado da URL e marque "Câmera: Permitir".<br>
+                    3. Reinicie o Chrome se você acabou de instalar o Camo.
+                  </div>
+
+                  <button onclick="location.reload()" style="padding:12px 24px; font-size:1.1rem; cursor:pointer; border-radius:12px; border:none; background:var(--primary); color:white; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);">Tentar Novamente</button>
               </div>
             `;
         }
@@ -174,16 +194,15 @@ class JogoIA extends Component {
         if (this.state.isLoading && this.state.devices.length === 0) {
             return `
               <div class="game-container loading-container">
-                  <h2>Buscando Câmeras Disponíveis...</h2>
+                  <h2>Sincronizando com Camo Studio...</h2>
                   <div class="spinner"></div>
               </div>
             `;
         }
 
-        // Renderiza as opções de câmera
         const cameraOptions = this.state.devices.map(device => {
             return `<option value="${device.deviceId}" ${this.state.selectedDeviceId === device.deviceId ? 'selected' : ''}>
-                ${device.label || 'Câmera Desconhecida'}
+                ${device.label || 'Câmera (Permissão Necessária)'}
             </option>`;
         }).join('');
 
@@ -193,8 +212,8 @@ class JogoIA extends Component {
                     <h2>Pedra, Papel, Tesoura <span class="ai-badge">VS IA</span></h2>
                     
                     <div class="camera-selector">
-                        <label for="cam-select">Sua Câmera:</label>
                         <select id="cam-select" onchange="window.app.mudarCamera(this.value)">
+                            <option value="">-- Selecione sua Câmera --</option>
                             ${cameraOptions}
                         </select>
                     </div>
@@ -226,5 +245,4 @@ class JogoIA extends Component {
     }
 }
 
-// Expõe globalmente para que o HTML <select onchange="..."> possa chamá-lo
 window.app = new JogoIA();
