@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jokenpô com IA | Antigravity</title>
+    
+    <!-- Fontes e Estilos Modernos -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Teachable Machine Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    
+    <!-- Import Map para habilitar o módulo 'antigravity' como Vanilla JS -->
+    <script type="importmap">
+        {
+            "imports": {
+                "antigravity": "./antigravity.js"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+/* Variáveis e Cores Vibrantes (Estilo Premium) */
+:root {
+    --bg-color: #0f172a;
+    --card-bg: rgba(30, 41, 59, 0.7);
+    --border-color: rgba(255, 255, 255, 0.1);
+    
+    --primary: #8b5cf6;
+    --neon-blue: #3b82f6;
+    --neon-green: #10b981;
+    --neon-red: #ef4444;
+    --neon-yellow: #f59e0b;
+
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    
+    --font-family: 'Outfit', sans-serif;
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100vh;
+    font-family: var(--font-family);
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* Base App e Transições */
+#app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.game-container {
+    width: 100%;
+    max-width: 900px;
+    height: 100%;
+    padding: 2rem;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.8s ease;
+    border-radius: 20px;
+    position: relative;
+    z-index: 1;
+}
+
+/* Modificadores de Estado (Feedback Visual de Vitória/Derrota) */
+.game-container::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 150vw;
+    height: 150vh;
+    z-index: -1;
+    background: radial-gradient(circle at center, rgba(139, 92, 246, 0.15) 0%, transparent 60%);
+    transition: background 0.6s ease;
+}
+
+.status-vitoria::before {
+    background: radial-gradient(circle at center, rgba(16, 185, 129, 0.25) 0%, transparent 60%);
+}
+.status-derrota::before {
+    background: radial-gradient(circle at center, rgba(239, 68, 68, 0.25) 0%, transparent 60%);
+}
+.status-empate::before {
+    background: radial-gradient(circle at center, rgba(245, 158, 11, 0.2) 0%, transparent 60%);
+}
+
+/* Header */
+.game-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    animation: fadeInDown 0.8s ease;
+}
+
+.game-header h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    background: linear-gradient(to right, #fff, #94a3b8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.ai-badge {
+    display: inline-block;
+    font-size: 1rem;
+    background: linear-gradient(45deg, var(--neon-blue), var(--primary));
+    color: white;
+    padding: 0.2rem 0.8rem;
+    border-radius: 12px;
+    vertical-align: middle;
+    margin-left: 10px;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+    -webkit-text-fill-color: initial;
+}
+
+/* Wrapper Principal */
+.main-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3rem;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    animation: zoomIn 0.8s ease;
+}
+
+/* Area da Webcam */
+.webcam-box {
+    position: relative;
+    width: 320px;
+    height: 320px;
+    border-radius: 24px;
+    padding: 10px;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02));
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+}
+
+#webcam-container, #webcam-container canvas {
+    width: 100%;
+    height: 100%;
+    border-radius: 18px;
+    object-fit: cover;
+    transform: scaleX(-1); /* Espelho natural */
+}
+
+/* Overlay Transparente (trava/debounce mode) */
+.webcam-overlay {
+    position: absolute;
+    top: 10px; left: 10px; right: 10px; bottom: 10px;
+    border-radius: 18px;
+    background: rgba(0,0,0,0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s ease;
+    pointer-events: none;
+}
+
+.webcam-overlay.locked {
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.lock-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: white;
+    text-align: center;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Placar / Informações */
+.scoreboard.bg-glass {
+    min-width: 300px;
+    padding: 2rem;
+    border-radius: 24px;
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.score-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+}
+
+.score-line .label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.score-line .val {
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: white;
+}
+
+/* Micro-animações e utilidades */
+hr {
+    border: none;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    margin: 1.5rem 0;
+}
+
+.result-text {
+    text-align: center;
+    font-size: 1.8rem;
+    margin: 0;
+    color: var(--neon-blue);
+    text-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+    min-height: 44px;
+}
+
+.status-vitoria .result-text { color: var(--neon-green); text-shadow: 0 0 10px rgba(16, 185, 129, 0.5); }
+.status-derrota .result-text { color: var(--neon-red); text-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+.status-empate .result-text { color: var(--neon-yellow); text-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+
+.pulse-text {
+    animation: mildPulse 2s infinite;
+}
+
+/* Loading */
+.loading-container {
+    text-align: center;
+}
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(255,255,255,0.1);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    margin: 20px auto;
+    animation: spin 1s infinite linear;
+}
+
+/* Keyframes */
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes zoomIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pop {
+    0% { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes mildPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
