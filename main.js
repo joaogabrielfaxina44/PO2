@@ -8,21 +8,64 @@ class JogoIA extends Component {
             computerChoice: '?',
             result: 'Mostre sua jogada na câmera!',
             isPlaying: false,
-            isLoading: true
+            isLoading: true,
+            cameraError: false,
+            devices: [],
+            selectedDeviceId: null
         };
     }
 
     async onMount() {
-        // Link fornecido do Teachable Machine
-        const URL = "https://teachablemachine.withgoogle.com/models/ib_Kd5aCH/";
+        try {
+            // Pede permissão inicial rápida para o Navegador liberar os nomes corretos (Camo, USB, etc)
+            await navigator.mediaDevices.getUserMedia({ video: true });
+            
+            // Busca todos os dispositivos de mídia logados no PC
+            const allDevices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = allDevices.filter(device => device.kind === 'videoinput');
+            
+            if (videoDevices.length > 0) {
+                // Guarda eles no State
+                this.setState({ 
+                    devices: videoDevices,
+                    selectedDeviceId: videoDevices[0].deviceId
+                });
+                
+                // Inicia a Câmera AI passando o ID específico
+                await this.initAI(videoDevices[0].deviceId);
+            } else {
+                throw new Error("Nenhuma câmera encontrada no sistema.");
+            }
+        } catch (error) {
+            console.error("Erro ao verificar câmeras:", error);
+            this.setState({ isLoading: false, cameraError: true });
+        }
+    }
+
+    // Método chamado ao inicializar e também ao trocar de câmera na dropdown
+    async initAI(deviceId) {
+        this.setState({ isLoading: true, selectedDeviceId: deviceId });
         
         try {
-            // Carrega a IA
-            this.model = await tmImage.load(URL + "model.json", URL + "metadata.json");
+            // Se já tiver uma webcam rodando antes (troca de id), para o stream anterior e remove o canvas antigo.
+            if (this.webcam) {
+                this.webcam.stop();
+                const container = document.getElementById("webcam-container");
+                if (container && container.firstChild) {
+                    container.innerHTML = '';
+                }
+            }
+
+            const URL = "https://teachablemachine.withgoogle.com/models/ib_Kd5aCH/";
             
-            // Configurar webcam
+            // Só carrega os Pesos da Inteligência Artificial uma vez
+            if (!this.model) {
+                this.model = await tmImage.load(URL + "model.json", URL + "metadata.json");
+            }
+            
+            // Inicializa a câmera apontando para o Sensor Virtual do Camo
             this.webcam = new tmImage.Webcam(300, 300, true);
-            await this.webcam.setup(); // request access to the webcam
+            await this.webcam.setup({ deviceId: deviceId }); 
             await this.webcam.play();
             
             this.setState({ isLoading: false });
@@ -34,8 +77,15 @@ class JogoIA extends Component {
             
             this.loop();
         } catch (error) {
-            console.error("Erro ao carregar a IA ou webcam:", error);
-            this.setState({ result: "Erro ao acessar a câmera. Tente novamente." });
+            console.error("Erro no setup da IA:", error);
+            this.setState({ isLoading: false, cameraError: true });
+        }
+    }
+
+    // Chamado pelo <select> do HTML
+    mudarCamera(novoDeviceId) {
+        if (novoDeviceId !== this.state.selectedDeviceId) {
+            this.initAI(novoDeviceId);
         }
     }
 
@@ -47,16 +97,15 @@ class JogoIA extends Component {
     }
 
     async predict() {
+        if (this.state.isLoading) return; // proteção extra
         const prediction = await this.model.predict(this.webcam.canvas);
         
         const bestPrediction = prediction.reduce((prev, current) => 
             (prev.probability > current.probability) ? prev : current
         );
 
-        // Garantir predição confiável, ignorando fundos ou ruídos
         if (bestPrediction.probability > 0.9) {
             const classNome = bestPrediction.className.trim();
-            // Ignora se for lido como Fundo
             if (classNome.toLowerCase() !== "fundo" && classNome !== "Background") {
                 this.processarJogada(classNome);
             }
@@ -66,20 +115,15 @@ class JogoIA extends Component {
     processarJogada(escolhaUsuario) {
         if (this.state.isPlaying) return;
 
-        // Normalização de nomes só pra garantir
-        const escolhasMap = {
-            'pedra': 'Pedra',
-            'papel': 'Papel',
-            'tesoura': 'Tesoura'
-        };
+        const escolhasMap = { 'pedra': 'Pedra', 'papel': 'Papel', 'tesoura': 'Tesoura' };
         const uChoiceNormal = escolhaUsuario.toLowerCase();
-        const jogadaSegura = escolhasMap[uChoiceNormal] || escolhaUsuario; // Cai de volta se não for uma das 3 exatas
+        const jogadaSegura = escolhasMap[uChoiceNormal] || escolhaUsuario; 
 
         const opcoes = ['Pedra', 'Papel', 'Tesoura'];
         const escolhaComputador = opcoes[Math.floor(Math.random() * 3)];
         
         let resultado = "";
-        let statusColor = "neutro"; // para mudar o CSS via Antigravity
+        let statusColor = "neutro";
 
         if (jogadaSegura === escolhaComputador) {
             resultado = "Empate!";
@@ -96,7 +140,6 @@ class JogoIA extends Component {
             statusColor = "derrota";
         }
 
-        // Atualiza a tela com o resultado e bloqueia novas leituras por um momento
         this.setState({ 
             userChoice: jogadaSegura, 
             computerChoice: escolhaComputador, 
@@ -105,7 +148,6 @@ class JogoIA extends Component {
             isPlaying: true 
         });
 
-        // Libera após 3 segundos
         setTimeout(() => {
             this.setState({ 
                 isPlaying: false, 
@@ -118,25 +160,49 @@ class JogoIA extends Component {
     }
 
     render() {
-        if (this.state.isLoading) {
+        if (this.state.cameraError) {
+            return `
+              <div class="game-container status-derrota">
+                  <h2>Erro na Câmera 📷</h2>
+                  <p style="font-size: 1.2rem; margin-top: 10px; text-align: center;">O navegador bloqueou o acesso à sua webcam ou ela está sendo usada por outro app.</p>
+                  <p style="font-size: 1rem; color: var(--text-muted); text-align: center;">Por favor, libere o acesso no ícone de "Configurações de site" (cadeado) na barra de endereços ali em cima e recarregue a página.</p>
+                  <button onclick="location.reload()" style="padding:12px 24px; font-size:1.2rem; cursor:pointer; margin-top:20px; border-radius:12px; border:none; background:var(--primary); color:white; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);">Tentar Novamente</button>
+              </div>
+            `;
+        }
+
+        if (this.state.isLoading && this.state.devices.length === 0) {
             return `
               <div class="game-container loading-container">
-                  <h2>Carregando Inteligência Artificial...</h2>
+                  <h2>Buscando Câmeras Disponíveis...</h2>
                   <div class="spinner"></div>
               </div>
             `;
         }
 
-        // Renderização principal e dinâmica do DOM via Antigravity
+        // Renderiza as opções de câmera
+        const cameraOptions = this.state.devices.map(device => {
+            return `<option value="${device.deviceId}" ${this.state.selectedDeviceId === device.deviceId ? 'selected' : ''}>
+                ${device.label || 'Câmera Desconhecida'}
+            </option>`;
+        }).join('');
+
         return `
             <div class="game-container status-${this.state.statusColor || 'neutro'}">
                 <header class="game-header">
                     <h2>Pedra, Papel, Tesoura <span class="ai-badge">VS IA</span></h2>
+                    
+                    <div class="camera-selector">
+                        <label for="cam-select">Sua Câmera:</label>
+                        <select id="cam-select" onchange="window.app.mudarCamera(this.value)">
+                            ${cameraOptions}
+                        </select>
+                    </div>
                 </header>
                 
                 <div class="main-content">
                     <div class="webcam-box">
-                        <div id="webcam-container"></div>
+                        ${this.state.isLoading ? '<div class="absolute-center spinner"></div>' : '<div id="webcam-container"></div>'}
                         <div class="webcam-overlay ${this.state.isPlaying ? 'locked' : ''}">
                             ${this.state.isPlaying ? `<div class="lock-text">${this.state.result}</div>` : ''}
                         </div>
@@ -160,5 +226,5 @@ class JogoIA extends Component {
     }
 }
 
-// Inicia o App
-const app = new JogoIA();
+// Expõe globalmente para que o HTML <select onchange="..."> possa chamá-lo
+window.app = new JogoIA();

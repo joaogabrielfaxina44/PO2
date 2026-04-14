@@ -109,6 +109,37 @@ body, html {
     -webkit-text-fill-color: initial;
 }
 
+/* Seletor de Câmera */
+.camera-selector {
+    margin-top: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.camera-selector label {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.camera-selector select {
+    background: rgba(15, 23, 42, 0.8);
+    color: white;
+    border: 1px solid var(--border-color);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    cursor: pointer;
+    outline: none;
+    transition: 0.3s;
+}
+
+.camera-selector select:hover {
+    border-color: var(--primary);
+}
+
 /* Wrapper Principal */
 .main-content {
     display: flex;
@@ -234,6 +265,13 @@ hr {
     border-radius: 50%;
     margin: 20px auto;
     animation: spin 1s infinite linear;
+}
+.absolute-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0 !important;
 }
 
 /* Keyframes */
